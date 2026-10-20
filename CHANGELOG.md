@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1 (2026-10-20)
+
+- Published on PyPI: try it with `uvx keptwise demo`, or install it with
+  `uv tool install keptwise`.
+- The README works on PyPI too, and notes that Keptwise isn't financial advice.
+
 ## 1.2.0 (2026-10-20)
 
 The first public release.
@@ -9,6 +15,8 @@ The first public release.
 - New `keptwise demo` command: a made-up year of data in its own database, for trying the
   app.
 - Dates display correctly on Windows.
+- Refuses requests addressed to other hostnames, and changes sent from other websites,
+  since the app has no login.
 - Released as free software under the GPL-3.0-or-later, with a contributing guide, security policy, and CI on Linux, macOS and Windows.
 
 ## 1.1.0

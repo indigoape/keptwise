@@ -1,6 +1,6 @@
 [project]
 name = "keptwise"
-version = "1.2.0"
+version = "1.2.1"
 description = "Import your monthly bank statement, see where the money went, and know how much to invest."
 readme = "README.md"
 requires-python = ">=3.10"

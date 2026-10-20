@@ -10,11 +10,15 @@ choose: "In October, put £755.56 into your index fund and £188.89 into Bitcoin
 
 Your data never leaves your computer. There are no accounts, no cloud and no bank logins.
 
-![The month overview: what you kept, what to invest next month, and a chart of every month](docs/screenshots/month-light.png)
+> **Not financial advice.** Keptwise does arithmetic with your own figures and the
+> percentages you choose. It doesn't recommend what to invest in, and it isn't a
+> substitute for advice from a qualified financial adviser.
+
+![The month overview: what you kept, what to invest next month, and a chart of every month](https://raw.githubusercontent.com/indigoape/keptwise/main/docs/screenshots/month-light.png)
 
 > **Built for the UK, for now.** Amounts are in pounds, tax years run 6 April to 5 April,
 > and the ISA allowance is tracked. Support for other currencies and tax years is
-> planned. If you'd like it for your country, see [Contributing](CONTRIBUTING.md).
+> planned. If you'd like it for your country, see [Contributing](https://github.com/indigoape/keptwise/blob/main/CONTRIBUTING.md).
 
 ## Try it
 
@@ -29,14 +33,21 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-Then:
+Then try it with a made-up year of data:
 
 ```sh
-git clone https://github.com/indigoape/keptwise.git
-cd keptwise
-uv run keptwise demo     # a made-up year of data, to look around
-uv run keptwise serve    # your own data
+uvx keptwise demo
 ```
+
+When you're ready to use it for real, install it and start it:
+
+```sh
+uv tool install keptwise
+keptwise serve
+```
+
+Update it later with `uv tool upgrade keptwise`. If you prefer pipx, `pipx install
+keptwise` works too.
 
 The demo uses its own database, on port 8766, so it never mixes with your data. Run it
 again any time to start it afresh, and stop it with `keptwise stop --port 8766`.
@@ -91,48 +102,50 @@ ran over, it tells you there's nothing to invest.
 
 | Tax year and ISA allowance | Rules with a live preview |
 |---|---|
-| ![Tax year page](docs/screenshots/tax-year.png) | ![Rules page](docs/screenshots/rules.png) |
+| ![Tax year page](https://raw.githubusercontent.com/indigoape/keptwise/main/docs/screenshots/tax-year.png) | ![Rules page](https://raw.githubusercontent.com/indigoape/keptwise/main/docs/screenshots/rules.png) |
 
 | Dark mode | On a phone |
 |---|---|
-| ![Dark mode](docs/screenshots/month-dark.png) | ![Phone layout](docs/screenshots/phone.png) |
+| ![Dark mode](https://raw.githubusercontent.com/indigoape/keptwise/main/docs/screenshots/month-dark.png) | ![Phone layout](https://raw.githubusercontent.com/indigoape/keptwise/main/docs/screenshots/phone.png) |
 
 All screenshots use the made-up data from `keptwise demo`.
 
 ## Where your data is kept
 
-When you run Keptwise from the cloned folder, your data is in `data/keptwise.db` inside
-that folder. If you install it as a package instead, it goes in your user data folder:
+Your data goes in your user data folder:
 
 - macOS: `~/Library/Application Support/Keptwise`
 - Linux: `~/.local/share/keptwise`
 - Windows: `%APPDATA%\Keptwise`
 
-Settings shows the exact path. Set `KEPTWISE_DB=/path/to/file.db` to choose your own.
+If you run Keptwise from a clone of this repository instead, it uses `data/keptwise.db`
+inside that folder. Settings shows the exact path. Set `KEPTWISE_DB=/path/to/file.db` to choose your own.
 Daily backups go in a `backups` folder next to the database, and the newest 30 are kept.
 
 ## Starting it without a terminal (macOS)
 
-Double-click `Keptwise.command` in Finder. The first time, right-click it and choose
+In a clone of this repository, double-click `Keptwise.command` in Finder. The first time, right-click it and choose
 **Open**. Close the window to stop the app.
 
 ## Command line
 
 ```sh
-uv run keptwise serve                      # start and open the app
-uv run keptwise serve --idle-timeout 60    # stop after an hour unused
-uv run keptwise import statement.csv       # import without the app
-uv run keptwise summary                    # latest month in the terminal
-uv run keptwise summary 2026-06            # a specific month
-uv run keptwise recategorise               # re-apply rules to everything
-uv run keptwise stop                       # stop an app running in the background
-uv run keptwise demo                       # try it with made-up data
+keptwise serve                      # start and open the app
+keptwise serve --idle-timeout 60    # stop after an hour unused
+keptwise import statement.csv       # import without the app
+keptwise summary                    # latest month in the terminal
+keptwise summary 2026-06            # a specific month
+keptwise recategorise               # re-apply rules to everything
+keptwise stop                       # stop an app running in the background
+keptwise demo                       # try it with made-up data
 ```
+
+From a clone of this repository, put `uv run` in front of each command.
 
 ## Security
 
 Keptwise is a single-user app for your own computer. It listens on `127.0.0.1` only and
-has no login, so don't expose it on a network. See [SECURITY.md](SECURITY.md).
+has no login, so don't expose it on a network. See [SECURITY.md](https://github.com/indigoape/keptwise/blob/main/SECURITY.md).
 
 ## Why no direct bank connection?
 
@@ -144,6 +157,8 @@ independent of any third party.
 ## Development
 
 ```sh
+git clone https://github.com/indigoape/keptwise.git
+cd keptwise
 uv run pytest                      # tests
 uv run ruff check .                # lint
 uv run ruff format .               # format
@@ -173,14 +188,14 @@ tests/            pytest suite with made-up statements
 ```
 
 Contributions are welcome, especially support for more banks. See
-[CONTRIBUTING.md](CONTRIBUTING.md).
+[CONTRIBUTING.md](https://github.com/indigoape/keptwise/blob/main/CONTRIBUTING.md).
 
 ## Licence
 
 Copyright © 2026 Jamie Baxter.
 
 Keptwise is free software: you can redistribute it and/or modify it under the terms of
-the [GNU General Public License](LICENSE), version 3 or (at your option) any later
+the [GNU General Public License](https://github.com/indigoape/keptwise/blob/main/LICENSE), version 3 or (at your option) any later
 version. It comes with no warranty.
 
 In short, you can use, change and share it, even commercially, as long as anything you

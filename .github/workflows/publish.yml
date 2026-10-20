@@ -1,7 +1,6 @@
-# Publishes to PyPI when a GitHub release is published.
-# Off until set up: PyPI needs a "trusted publisher" for this repository and workflow
-# (pypi.org > Your projects > Publishing), and the repository needs a "pypi" environment
-# (Settings > Environments). Then set the PUBLISH_TO_PYPI repository variable to "true".
+# Publishes to PyPI when a GitHub release is published, using PyPI's trusted publishing
+# (no passwords or tokens are stored). The release tag must match the version in
+# pyproject.toml, for example v1.2.1.
 name: Publish to PyPI
 
 on:
@@ -10,13 +9,21 @@ on:
 
 jobs:
   publish:
-    if: vars.PUBLISH_TO_PYPI == 'true'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
+      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.0
+      - name: Check the tag matches the version
+        run: |
+          version=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "The tag $GITHUB_REF_NAME doesn't match version $version in pyproject.toml."
+            exit 1
+          fi
+      - run: uv run --python 3.13 pytest -q
       - run: uv build
       - run: uv publish
