@@ -1,0 +1,31 @@
+name: My bank's CSV isn't recognised
+description: The importer couldn't read your bank's export, or read it wrongly.
+labels: ["bank format"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Please don't paste real transactions.** Copy the header line exactly, then make up
+        two or three rows in the same format, with fake descriptions and amounts.
+  - type: input
+    id: bank
+    attributes:
+      label: Bank and account type
+      placeholder: e.g. Example Bank current account
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Header and a few made-up rows
+      description: Include any lines above the header too. Keep the exact quoting, dates and £ signs.
+      render: csv
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: The error message, or what came out wrong (dates, amounts, money in vs out).
+    validations:
+      required: true

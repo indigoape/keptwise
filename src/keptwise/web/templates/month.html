@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}{{ s.label }}{% endblock %}
+{% block content %}
+<header class="page-head month-head">
+  <div class="month-switch">
+    {% if prev_month %}<a class="step" href="{{ url_for('main.month', month=prev_month) }}" aria-label="Previous month: {{ prev_month|month }}">&#8249;</a>{% else %}<span class="step" aria-hidden="true">&#8249;</span>{% endif %}
+    <h1>{{ s.label }}</h1>
+    {% if next_month %}<a class="step" href="{{ url_for('main.month', month=next_month) }}" aria-label="Next month: {{ next_month|month }}">&#8250;</a>{% else %}<span class="step" aria-hidden="true">&#8250;</span>{% endif %}
+  </div>
+  <p class="meta">
+    {{ s.transaction_count }} transactions{% if s.first_date %}, {{ s.first_date|day }} to {{ s.last_date|day('%-d %b') }}{% endif %}.
+    {% if s.is_partial %}<span class="pill warn" title="The statement doesn't cover the whole month">Part month</span>{% endif %}
+  </p>
+</header>
+
+<section class="verdict" aria-labelledby="verdict-title">
+  {% if s.surplus >= 0 %}
+    <p class="lede" id="verdict-title">You kept <span class="figure keep">{{ s.surplus|money }}</span> in {{ s.month|month('%B') }}.</p>
+    {% if s.to_invest > 0 %}
+      <p class="plan">In {{ s.next_label.split()[0] }}, put
+        {% for a in s.allocations if a.share > 0 %}
+          <span class="figure">{{ a.amount|money }}</span> into {{ a.name }}{% if not loop.last %}{% if loop.revindex == 2 %} and {% else %}, {% endif %}{% endif %}
+        {%- endfor %}.
+      </p>
+    {% endif %}
+  {% else %}
+    <p class="lede" id="verdict-title">{{ s.month|month('%B') }} ran <span class="figure over">{{ (-s.surplus)|money }}</span> over.</p>
+    <p class="plan">Nothing to invest in {{ s.next_label.split()[0] }}.</p>
+  {% endif %}
+
+  {% if following and s.to_invest > 0 %}
+    {% set put_in = following.total_invested %}
+    <p class="follow-up">
+      {% if put_in >= s.to_invest - 1 %}
+        <span class="tick" aria-hidden="true">&#10003;</span> Done: you put in {{ put_in|money }} in {{ following.month|month('%B') }}.
+      {% elif following.is_partial %}
+        {% if put_in > 0 %}So far in {{ following.month|month('%B') }} you've put in {{ put_in|money }}, {{ (s.to_invest - put_in)|money }} short of the plan.
+        {% else %}Nothing has gone into investments in {{ following.month|month('%B') }} yet.{% endif %}
+      {% elif put_in > 0 %}
+        You put in {{ put_in|money }} in {{ following.month|month('%B') }}, {{ (s.to_invest - put_in)|money }} short of the plan.
+      {% else %}
+        Nothing went into investments in {{ following.month|month('%B') }}.
+      {% endif %}
+    </p>
+  {% endif %}
+</section>
+
+{% if flags %}
+<section class="panel worth-a-look" aria-labelledby="flags-title">
+  <div class="panel-head">
+    <h2 id="flags-title">Worth a look</h2>
+    <p class="hint">Compared with your own last 12 months.</p>
+  </div>
+  <ul class="flag-list">
+    {% for f in flags %}
+      <li class="flag {{ f.kind }} {{ 'good' if f.good else 'bad' }}">
+        <span class="flag-mark" aria-hidden="true"></span>
+        <span class="flag-text">{{ f.message }}</span>
+        {% if f.category_id %}<a class="quiet-link" href="{{ url_for('main.transactions', month='all' if f.kind == 'missing' else s.month, category=f.category_id) }}">See</a>{% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="panel strip" aria-labelledby="strip-title">
+  <div class="panel-head">
+    <h2 id="strip-title">Kept each month</h2>
+    <p class="hint">Money in minus money out, before investing. Select a bar to open that month.</p>
+  </div>
+  <div class="chart-scroll">{{ month_bars(strip, aria_label="Amount kept each month") }}</div>
+</section>
+
+<div class="columns">
+  <section class="panel" aria-labelledby="ledger-title">
+    <div class="panel-head">
+      <h2 id="ledger-title">How the month adds up</h2>
+    </div>
+    <table class="ledger">
+      <thead><tr><th scope="col"></th><th scope="col" class="num">In</th><th scope="col" class="num">Out</th><th scope="col" class="num">Net</th></tr></thead>
+      <tbody>
+        {% for key in ('regular', 'cash', 'adhoc') %}{% set b = s.buckets[key] %}
+        <tr>
+          <th scope="row"><a href="{{ url_for('main.transactions', month=s.month, bucket=key) }}"><span class="swatch {{ key }}"></span>{{ b.label }}</a></th>
+          <td class="num">{{ b.money_in|money }}</td>
+          <td class="num">{{ b.money_out|money }}</td>
+          <td class="num {{ 'neg' if b.net < 0 }}">{{ b.net|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tbody class="subtotal">
+        <tr>
+          <th scope="row">Kept</th>
+          <td class="num">{{ s.total_in|money }}</td>
+          <td class="num">{{ s.total_out|money }}</td>
+          <td class="num strong {{ 'neg' if s.surplus < 0 else 'keep' }}">{{ s.surplus|money }}</td>
+        </tr>
+        {% set inv = s.buckets['investment'] %}
+        <tr>
+          <th scope="row"><a href="{{ url_for('main.transactions', month=s.month, bucket='investment') }}"><span class="swatch investment"></span>Investments</a></th>
+          <td class="num">{{ inv.money_in|money }}</td>
+          <td class="num">{{ inv.money_out|money }}</td>
+          <td class="num">{{ inv.net|money }}</td>
+        </tr>
+        <tr class="total">
+          <th scope="row">Bank balance change</th>
+          <td></td><td></td>
+          <td class="num {{ 'neg' if s.bank_net < 0 }}">{{ s.bank_net|money_signed }}</td>
+        </tr>
+      </tbody>
+    </table>
+    {% if s.opening_balance is not none %}
+      <p class="balance-line">Balance {{ s.opening_balance|money }} at the start, {{ s.closing_balance|money }} at the end.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel" aria-labelledby="regulars-title">
+    <div class="panel-head">
+      <h2 id="regulars-title">Regulars</h2>
+      <a class="quiet-link" href="{{ url_for('main.transactions', month=s.month, bucket='regular') }}">See transactions</a>
+    </div>
+    {% if regulars %}
+    <ul class="line-list">
+      {% for c in regulars %}
+        <li>
+          <a href="{{ url_for('main.transactions', month=s.month, category=c.category_id) }}">{{ c.name }}</a>
+          {% if c.count > 1 %}<span class="muted small">&times;{{ c.count }}</span>{% endif %}
+          <span class="num {{ 'income' if c.money_in > c.money_out }}">{{ (c.money_in - c.money_out)|money_signed }}</span>
+        </li>
+      {% endfor %}
+      {% for c in cash %}
+        <li class="cash-line">
+          <a href="{{ url_for('main.transactions', month=s.month, category=c.category_id) }}">{{ c.name }}</a>
+          {% if c.count > 1 %}<span class="muted small">&times;{{ c.count }}</span>{% endif %}
+          <span class="num {{ 'income' if c.money_in > c.money_out }}">{{ (c.money_in - c.money_out)|money_signed }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p class="empty-note">No regular payments this month.</p>
+    {% endif %}
+  </section>
+</div>
+
+<section class="panel" aria-labelledby="adhoc-title">
+  <div class="panel-head">
+    <h2 id="adhoc-title">Ad hoc spending <span class="head-figure">{{ adhoc_total|money }}</span></h2>
+    <p class="hint">After refunds and money paid back. "Normal" is based on your last 12 months; hover for the usual range.</p>
+  </div>
+  {% if s.uncategorised_count %}
+    <p class="notice">
+      {{ s.uncategorised_count }} transaction{{ 's' if s.uncategorised_count != 1 }} this month {{ 'have' if s.uncategorised_count != 1 else 'has' }} no category yet.
+      <a href="{{ url_for('main.transactions', month=s.month, category='none') }}">Categorise {{ 'them' if s.uncategorised_count != 1 else 'it' }}</a>
+    </p>
+  {% endif %}
+  {% if adhoc %}
+  <ul class="hbars">
+    {% for c in adhoc %}
+      {% set v = verdicts.get(c.category_id) %}
+      <li>
+        <a class="hbar-name" href="{{ url_for('main.transactions', month=s.month, category=c.category_id if c.category_id else 'none') }}">{{ c.name }}</a>
+        <span class="hbar-track"><span class="hbar-fill {{ 'uncat' if not c.category_id }}" style="width: {{ bar_width(c.net_spend, adhoc_max) }}"></span></span>
+        <span class="num hbar-value">{{ c.net_spend|money }}</span>
+        <span class="num hbar-delta">
+          {% if v %}
+            {% if v[0] == 'above' %}<span class="up" title="{{ v[1]|capitalize }}">above normal</span>
+            {% elif v[0] == 'below' %}<span class="down" title="{{ v[1]|capitalize }}">below normal</span>
+            {% else %}<span class="muted" title="{{ v[1]|capitalize }}">normal</span>{% endif %}
+          {% endif %}
+        </span>
+      </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    <p class="empty-note">No ad hoc spending this month.</p>
+  {% endif %}
+</section>
+
+{% if biggest %}
+<section class="panel" aria-labelledby="biggest-title">
+  <div class="panel-head"><h2 id="biggest-title">Biggest ad hoc spends</h2></div>
+  <table class="rows compact">
+    <tbody>
+    {% for t in biggest %}
+      <tr>
+        <td class="date">{{ t.date|day }}</td>
+        <td class="desc">{{ t.description }}{% if t.note %}<span class="note-inline">{{ t.note }}</span>{% endif %}</td>
+        <td class="cat"><span class="tag">{{ t.category }}</span></td>
+        <td class="num">{{ (-t.amount)|money }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

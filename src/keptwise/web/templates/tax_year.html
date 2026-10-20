@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Tax year {{ ty.label }}{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div class="month-switch">
+    {% if prev_year %}<a class="step" href="{{ url_for('main.tax_year', year=prev_year) }}" aria-label="Previous tax year">&#8249;</a>{% else %}<span class="step" aria-hidden="true">&#8249;</span>{% endif %}
+    <h1>Tax year {{ ty.label }}</h1>
+    {% if next_year %}<a class="step" href="{{ url_for('main.tax_year', year=next_year) }}" aria-label="Next tax year">&#8250;</a>{% else %}<span class="step" aria-hidden="true">&#8250;</span>{% endif %}
+  </div>
+  <p class="meta">
+    {{ ty.start|day('%-d %B %Y') }} to {{ ty.end|day('%-d %B %Y') }}.
+    {% if days_left is not none %}{{ days_left }} day{{ 's' if days_left != 1 }} left, imported up to {{ ty.last_date|day('%-d %B') }}.{% endif %}
+    {% if ty.first_date and (ty.first_date - ty.start).days > 4 %}<span class="pill warn" title="The first transaction imported for this tax year">Data starts {{ ty.first_date|day('%-d %b %Y') }}</span>{% endif %}
+    {% if days_left is none and ty.last_date and (ty.end - ty.last_date).days > 4 %}<span class="pill warn" title="The last transaction imported for this tax year">Data ends {{ ty.last_date|day('%-d %b %Y') }}</span>{% endif %}
+  </p>
+</header>
+
+{% if ty.isa_names %}
+<section class="panel isa-panel" aria-labelledby="isa-title">
+  <div class="panel-head">
+    <h2 id="isa-title">ISA allowance</h2>
+    <p class="hint">{{ ty.isa_names|join(' and ') }}. The allowance is £{{ '{:,}'.format(allowance // 100) }} a year and resets on 6 April.</p>
+  </div>
+  {% set used = ty.isa_contributions %}
+  <p class="isa-figures">
+    <span class="figure">{{ used|money }}</span> used,
+    {% if used <= allowance %}<span class="figure keep">{{ ty.isa_left|money }}</span> left{% else %}<span class="figure over">{{ (used - allowance)|money }}</span> over the allowance{% endif %}
+  </p>
+  <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="{{ allowance }}" aria-valuenow="{{ used }}" aria-label="ISA allowance used">
+    <span class="meter-fill {{ 'over' if used > allowance }}" style="width: {{ bar_width(used if used < allowance else allowance, allowance) }}"></span>
+  </div>
+  <p class="hint isa-note">Counts money paid in. Taking money out doesn't give allowance back unless your ISA is flexible, so check with your provider before paying back in.</p>
+</section>
+{% endif %}
+
+<div class="columns">
+  <section class="panel" aria-labelledby="totals-title">
+    <div class="panel-head"><h2 id="totals-title">The year in totals</h2></div>
+    <table class="ledger">
+      <thead><tr><th scope="col"></th><th scope="col" class="num">In</th><th scope="col" class="num">Out</th><th scope="col" class="num">Net</th></tr></thead>
+      <tbody>
+        {% for key in ('regular', 'cash', 'adhoc') %}{% set b = ty.buckets[key] %}
+        <tr>
+          <th scope="row"><span class="swatch {{ key }}"></span> {{ b.label }}</th>
+          <td class="num">{{ b.money_in|money }}</td>
+          <td class="num">{{ b.money_out|money }}</td>
+          <td class="num {{ 'neg' if b.net < 0 }}">{{ b.net|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tbody class="subtotal">
+        <tr>
+          <th scope="row">Kept</th>
+          <td class="num">{{ ty.total_in|money }}</td>
+          <td class="num">{{ ty.total_out|money }}</td>
+          <td class="num strong {{ 'neg' if ty.kept < 0 else 'keep' }}">{{ ty.kept|money }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel" aria-labelledby="income-title">
+    <div class="panel-head"><h2 id="income-title">Money in</h2></div>
+    <ul class="line-list">
+      {% for c in ty.categories|selectattr('money_in')|sort(attribute='money_in', reverse=true) if c.bucket in ('regular', 'cash') %}
+        <li><span>{{ c.name }}</span><span class="num income">{{ c.money_in|money }}</span></li>
+      {% else %}
+        <li class="muted">Nothing yet.</li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+
+{% for cat, payments in investments %}
+<section class="panel" aria-labelledby="inv-{{ cat.id }}">
+  <div class="panel-head">
+    <h2 id="inv-{{ cat.id }}">{{ cat.name }}{% if cat.is_isa %} <span class="pill isa">ISA</span>{% endif %}
+      <span class="head-figure">{{ ty.invested.get(cat.name, 0)|money }} put in{% if ty.withdrawn.get(cat.name) %}, {{ ty.withdrawn[cat.name]|money }} taken out{% endif %}</span></h2>
+    <div class="actions">
+      {% if cat.url %}<a class="quiet-link" href="{{ cat.url }}" target="_blank" rel="noopener">Open {{ cat.url|site_name }}&#8599;</a>{% endif %}
+      <a class="button small" href="{{ url_for('main.investment_csv', category_id=cat.id) }}" title="Every payment to and from {{ cat.name }}, all tax years">Download CSV</a>
+    </div>
+    {% if not cat.is_isa %}<p class="hint">Bank payments only. For capital gains you'll also need the amounts bought and sold, which are in {{ cat.url|site_name if cat.url else 'the provider' }}'s own history.</p>{% endif %}
+  </div>
+  {% if payments %}
+  <div class="table-wrap">
+  <table class="rows compact">
+    <thead><tr><th scope="col">Date</th><th scope="col">Description</th><th scope="col" class="num">Paid in</th><th scope="col" class="num">Taken out</th></tr></thead>
+    <tbody>
+    {% for t in payments %}
+      <tr>
+        <td class="date">{{ t.date|day('%-d %b %Y') }}</td>
+        <td class="desc">{{ t.description }}{% if t.note %}<span class="note-inline">{{ t.note }}</span>{% endif %}</td>
+        <td class="num">{% if t.amount < 0 %}{{ (-t.amount)|money }}{% endif %}</td>
+        <td class="num keep">{% if t.amount > 0 %}{{ t.amount|money }}{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+    <p class="empty-note">No payments this tax year.</p>
+  {% endif %}
+</section>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Keptwise{% endblock %} – Keptwise</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2316233A'/%3E%3Cpath d='M11 9v14M21.5 9 12.5 16l9 7' stroke='%233CC2B8' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="shell">
+    <nav class="sidebar" aria-label="Main">
+      <a class="brand" href="{{ url_for('main.index') }}">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M11 9v14M21.5 9 12.5 16l9 7"/></svg>
+        <span>Keptwise</span>
+      </a>
+      {% set ep = request.endpoint or '' %}
+      <ul>
+        <li><a href="{{ url_for('main.index') }}" {% if ep in ('main.month', 'main.index') %}aria-current="page"{% endif %}>Overview</a></li>
+        <li><a href="{{ url_for('main.transactions') }}" {% if ep == 'main.transactions' %}aria-current="page"{% endif %}>Transactions
+          </a>
+          {% if nav_uncategorised %}<a class="badge" href="{{ url_for('main.transactions', month='all', category='none') }}" title="{{ nav_uncategorised }} without a category">{{ nav_uncategorised }}</a>{% endif %}</li>
+        <li><a href="{{ url_for('main.investments') }}" {% if ep == 'main.investments' %}aria-current="page"{% endif %}>Investments</a></li>
+        <li><a href="{{ url_for('main.tax_years_index') }}" {% if ep == 'main.tax_year' %}aria-current="page"{% endif %}>Tax years</a></li>
+        <li><a href="{{ url_for('main.rules_page') }}" {% if ep == 'main.rules_page' %}aria-current="page"{% endif %}>Categories &amp; rules</a></li>
+        <li><a href="{{ url_for('main.settings') }}" {% if ep in ('main.settings', 'main.setup') %}aria-current="page"{% endif %}>Settings</a></li>
+      </ul>
+      <a class="button primary import-link" href="{{ url_for('main.import_page') }}" {% if ep == 'main.import_page' %}aria-current="page"{% endif %}>Import statement</a>
+    </nav>
+    <main id="main" class="main">
+      {% if statement_due and request.endpoint != 'main.import_page' %}
+        <div class="due-banner" role="note">
+          <p><strong>Time to import.</strong> Download {{ bank_name or 'your bank' }} transactions from {{ statement_due[0]|day('%-d %B') }} to {{ statement_due[1]|day('%-d %B %Y') }} as a CSV.</p>
+          <a class="button primary small" href="{{ url_for('main.import_page') }}">Import statement</a>
+        </div>
+      {% endif %}
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flashes" role="status">
+            {% for kind, message in messages %}
+              <p class="flash {{ kind }}">{{ message }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

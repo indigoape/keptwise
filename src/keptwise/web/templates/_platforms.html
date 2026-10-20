@@ -1,0 +1,34 @@
+{# Editable list of investment platforms. Used by setup and settings. #}
+{% macro platform_row(i, row) %}
+  <fieldset class="platform" data-platform>
+    <legend class="sr-only">Investment{% if i is number %} {{ i + 1 }}{% endif %}</legend>
+    <input type="hidden" name="inv-{{ i }}-id" value="{{ row.id }}">
+    <label class="p-name">Name
+      <input name="inv-{{ i }}-name" value="{{ row.name }}" placeholder="e.g. Global index fund" autocomplete="off">
+    </label>
+    <label class="p-share">Share of surplus
+      <span class="split-input"><input name="inv-{{ i }}-share" type="number" min="0" max="100" step="any" value="{{ row.share }}" inputmode="decimal" data-share><span>%</span></span>
+    </label>
+    <label class="p-patterns">How it appears on your statement
+      <input name="inv-{{ i }}-patterns" value="{{ row.patterns }}" placeholder="e.g. VANGUARD" autocomplete="off">
+    </label>
+    <label class="p-url">Website to log in
+      <input name="inv-{{ i }}-url" value="{{ row.url }}" placeholder="e.g. vanguardinvestor.co.uk" inputmode="url" autocomplete="off">
+    </label>
+    <label class="check p-isa"><input type="checkbox" name="inv-{{ i }}-isa" value="1" {% if row.isa %}checked{% endif %}> Stocks &amp; Shares ISA</label>
+    <label class="check p-remove"><input type="checkbox" name="inv-{{ i }}-remove" value="1" data-remove> Remove</label>
+  </fieldset>
+{% endmacro %}
+
+{% macro platform_editor(rows) %}
+  <div class="platforms" data-platforms data-next="{{ rows|length + 1 }}">
+    {% for row in rows %}{{ platform_row(loop.index0, row) }}{% endfor %}
+    {{ platform_row(rows|length, {"id": "", "name": "", "share": "", "url": "", "isa": False, "patterns": ""}) }}
+  </div>
+  <template data-platform-template>{{ platform_row("__i__", {"id": "", "name": "", "share": "", "url": "", "isa": False, "patterns": ""}) }}</template>
+  <div class="platform-foot">
+    <button class="button small" type="button" data-add-platform>Add another</button>
+    <p class="split-total" data-split-total aria-live="polite"></p>
+  </div>
+  <p class="hint">Each month, what you kept is split between these by percentage, which must add up to 100%. "How it appears on your statement" is the text in your bank's description for payments to it, like VANGUARD; separate several with commas. Leave the list empty if you don't invest.</p>
+{% endmacro %}

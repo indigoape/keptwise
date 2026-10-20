@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Investments{% endblock %}
+{% block content %}
+{% if not targets %}
+<header class="page-head"><h1>Investments</h1></header>
+<div class="empty">
+  <p>Add what you invest in, and each month's overview will say how much to put into each.</p>
+  <a class="button primary" href="{{ url_for('main.settings') }}">Add investments in Settings</a>
+</div>
+{% else %}
+<header class="page-head head-with-actions">
+  <div>
+    <h1>Investments</h1>
+    <p class="meta">Each month's surplus is split between your investments and put in the following month.</p>
+  </div>
+  <div class="head-actions">
+    {% for t in targets if t.url %}
+      <a class="button" href="{{ t.url }}" target="_blank" rel="noopener">Open {{ t.url|site_name }}<span class="ext" aria-hidden="true">&#8599;</span><span class="sr-only"> (opens in a new tab)</span></a>
+    {% endfor %}
+  </div>
+</header>
+
+<section class="verdict small-verdict">
+  <p class="lede">You've put <span class="figure keep">{{ invested_total|money }}</span> into investments{% if withdrawn_total %} and taken <span class="figure">{{ withdrawn_total|money }}</span> out{% endif %}.</p>
+  {% if planned_total %}
+    {% set gap = actual_total - planned_total %}
+    <p class="plan">
+      {% if gap|abs < 100 %}That's right on plan.
+      {% elif gap > 0 %}That's {{ gap|money }} more than your surpluses suggested.
+      {% else %}That's {{ (-gap)|money }} less than your surpluses suggested.{% endif %}
+    </p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="chart-title">
+  <div class="panel-head">
+    <h2 id="chart-title">Planned and put in</h2>
+    <p class="legend"><span class="key planned"></span>Planned <span class="key actual"></span>Put in</p>
+    <p class="hint">Labelled by the month the money goes in. The plan comes from the month before.</p>
+  </div>
+  <div class="chart-scroll">{{ paired_bars(chart_rows, aria_label="Planned and invested per month", second_label="Put in") }}</div>
+</section>
+
+<section class="panel split-panel" aria-labelledby="split-title">
+  <div class="panel-head">
+    <h2 id="split-title">How the surplus is split</h2>
+    <a class="quiet-link" href="{{ url_for('main.settings') }}">Change in Settings</a>
+  </div>
+  <ul class="line-list">
+    {% for t in targets %}
+      <li>
+        <span class="split-name"><span class="swatch investment"></span>{{ t.name }}{% if t.is_isa %} <span class="pill isa">ISA</span>{% endif %}</span>
+        <span class="muted small">{{ put_in.get(t.name, 0)|money }} put in{% if taken_out.get(t.name) %}, {{ taken_out[t.name]|money }} taken out{% endif %}</span>
+        <span class="num strong">{{ t.share|pct }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="panel" aria-labelledby="plan-title">
+  <div class="panel-head"><h2 id="plan-title">Month by month</h2></div>
+  <div class="table-wrap">
+  <table class="rows plan-table">
+    <thead>
+      <tr>
+        <th scope="col">Surplus from</th>
+        <th scope="col" class="num">Kept</th>
+        {% for n in names %}<th scope="col" class="num">{{ n }} plan</th>{% endfor %}
+        <th scope="col">Invest in</th>
+        {% for n in names %}<th scope="col" class="num">{{ n }} put in</th>{% endfor %}
+        <th scope="col" class="num">Difference</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in plan %}
+      <tr>
+        <th scope="row"><a href="{{ url_for('main.month', month=row.month) }}">{{ row.label }}</a></th>
+        <td class="num {{ 'neg' if row.surplus < 0 }}">{{ row.surplus|money }}</td>
+        {% for n in names %}<td class="num">{{ row.planned.get(n, 0)|money }}</td>{% endfor %}
+        <td>{{ row.invest_month_label }}</td>
+        {% if row.actual_known %}
+          {% for n in names %}<td class="num">{{ row.actual.get(n, 0)|money }}{% if row.withdrawn.get(n) %}<span class="withdrawn" title="Taken out that month">{{ (-row.withdrawn[n])|money }} out</span>{% endif %}</td>{% endfor %}
+          {% set diff = row.actual_total - row.planned_total %}
+          <td class="num {{ 'neg' if diff < -100 else ('keep' if diff > 100 else 'muted') }}">{{ diff|money_signed if diff|abs >= 100 else 'on plan' }}</td>
+        {% else %}
+          <td class="muted" colspan="{{ names|length + 1 }}">Not imported yet</td>
+        {% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

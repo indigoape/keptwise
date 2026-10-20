@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Welcome{% endblock %}
+{% block content %}
+<section class="welcome">
+  <h1>Start with last month's statement</h1>
+  <p>Download your current account's transactions as a CSV from {{ bank_name or 'online banking' }} and import them. Each one is sorted into Regulars, Cash, Investments or Ad hoc, and the overview tells you what you kept and how much to invest next month.</p>
+  <a class="button primary" href="{{ url_for('main.import_page') }}">Import statement</a>
+</section>
+{% endblock %}

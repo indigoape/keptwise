@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Transactions{% endblock %}
+{% macro category_select(row) %}
+  <select class="cat-select bucket-{{ row.bucket }}{{ ' is-uncat' if not row.category_id }}" data-tx="{{ row.id }}" aria-label="Category for {{ row.description }}">
+    <option value="auto" {% if not row.manual %}hidden{% endif %}>Use rules</option>
+    <option value="" {% if not row.category_id %}selected{% endif %}>No category</option>
+    {% for key, label in BUCKETS.items() %}
+      {% if grouped[key] %}
+      <optgroup label="{{ label }}">
+        {% for c in grouped[key] %}
+          <option value="{{ c.id }}" {% if c.id == row.category_id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </optgroup>
+      {% endif %}
+    {% endfor %}
+  </select>
+{% endmacro %}
+{% block content %}
+<header class="page-head">
+  <h1>Transactions</h1>
+  <p class="meta">Change a category and the app offers to remember it for similar transactions.</p>
+</header>
+
+<form class="filters" method="get" action="{{ url_for('main.transactions') }}" data-autosubmit>
+  <label>Month
+    <select name="month">
+      <option value="all" {% if args.get('month') == 'all' %}selected{% endif %}>All months</option>
+      {% for m in months %}<option value="{{ m }}" {% if args.get('month') == m %}selected{% endif %}>{{ m|month }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Group
+    <select name="bucket">
+      <option value="">All groups</option>
+      {% for key, label in BUCKETS.items() %}<option value="{{ key }}" {% if args.get('bucket') == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Category
+    <select name="category">
+      <option value="">All categories</option>
+      <option value="none" {% if args.get('category') == 'none' %}selected{% endif %}>No category</option>
+      {% for key, label in BUCKETS.items() %}
+        <optgroup label="{{ label }}">
+        {% for c in grouped[key] %}<option value="{{ c.id }}" {% if args.get('category') == c.id|string %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+        </optgroup>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Direction
+    <select name="direction">
+      <option value="">In and out</option>
+      <option value="in" {% if args.get('direction') == 'in' %}selected{% endif %}>Money in</option>
+      <option value="out" {% if args.get('direction') == 'out' %}selected{% endif %}>Money out</option>
+    </select>
+  </label>
+  <label class="grow">Search
+    <input type="search" name="q" value="{{ args.get('q', '') }}" placeholder="Description or note">
+  </label>
+  <noscript><button class="button" type="submit">Filter</button></noscript>
+</form>
+
+<div class="table-summary">
+  <p><strong>{{ rows|length }}</strong> transaction{{ 's' if rows|length != 1 }}
+    <span class="muted">({{ total_in|money }} in, {{ total_out|money }} out)</span></p>
+  <div class="actions">
+    {% if args|length > 1 %}<a class="quiet-link" href="{{ url_for('main.transactions', month=args.get('month')) }}">Clear filters</a>{% endif %}
+    <a class="button small" href="{{ url_for('main.transactions_csv', **args) }}">Download CSV</a>
+  </div>
+</div>
+
+{% if rows %}
+<div class="table-wrap">
+<table class="rows tx-table">
+  <thead>
+    <tr>
+      <th scope="col">Date</th>
+      <th scope="col">Description</th>
+      <th scope="col" class="num">Amount</th>
+      <th scope="col">Category</th>
+      <th scope="col">Note</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for row in rows %}
+    {% if loop.first or row.date[:7] != loop.previtem.date[:7] %}
+      <tr class="month-row"><th colspan="5" scope="rowgroup">{{ row.date[:7]|month }}</th></tr>
+    {% endif %}
+    <tr id="tx-{{ row.id }}" class="{{ 'credit' if row.amount > 0 }}">
+      <td class="date">{{ row.date|day('%a %-d %b') }}</td>
+      <td class="desc">
+        <span class="desc-text">{{ row.description }}</span>
+        <span class="tx-type" title="Bank transaction type">{{ row.tx_type }}</span>
+      </td>
+      <td class="num amount">{{ row.amount|money_signed }}</td>
+      <td class="cat">
+        {{ category_select(row) }}
+        <span class="how muted small" data-how>{% if row.manual %}Set by you{% endif %}</span>
+      </td>
+      <td class="note"><input class="note-input" data-tx="{{ row.id }}" value="{{ row.note }}" aria-label="Note for {{ row.description }}" placeholder="Add note" maxlength="500"></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+  <div class="empty">
+    <p>No transactions match these filters.</p>
+    <a class="button" href="{{ url_for('main.transactions', month='all') }}">Show all transactions</a>
+  </div>
+{% endif %}
+
+<template id="rule-offer">
+  <div class="offer">
+    <p>Always put <strong data-pattern></strong> under <strong data-category></strong>?
+      <span class="muted" data-others></span></p>
+    <form method="post" action="{{ url_for('main.create_rule') }}" data-rule-form>
+      <input type="hidden" name="pattern">
+      <input type="hidden" name="category_id">
+      <input type="hidden" name="direction">
+      <input type="hidden" name="match_type" value="contains">
+      <input type="hidden" name="priority" value="20">
+      <input type="hidden" name="next" value="{{ request.full_path }}">
+      <button class="button primary small" type="submit">Create rule</button>
+      <a class="button small" data-edit-rule href="#">Edit first</a>
+      <button class="button small ghost" type="button" data-dismiss>Just this one</button>
+    </form>
+  </div>
+</template>
+<script>window.RULES_URL = "{{ url_for('main.rules_page') }}";</script>
+{% endblock %}

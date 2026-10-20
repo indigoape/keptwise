@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "_platforms.html" import platform_editor %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Settings</h1>
+  <p class="meta text">Your bank and investments. Categories are on the <a href="{{ url_for('main.rules_page') }}">Categories &amp; rules</a> page.</p>
+</header>
+
+<form method="post" action="{{ url_for('main.settings') }}" data-settings>
+  <section class="panel" aria-labelledby="bank-title">
+    <div class="panel-head">
+      <h2 id="bank-title">Bank</h2>
+      <p class="hint">Used in the monthly reminder and the "time to import" banner.</p>
+    </div>
+    <label class="bank-field">Bank name
+      <input name="bank_name" value="{{ form.get('bank_name', '') }}" placeholder="e.g. Lloyds, Monzo, Nationwide" autocomplete="organization">
+    </label>
+  </section>
+
+  <section class="panel" aria-labelledby="inv-title">
+    <div class="panel-head">
+      <h2 id="inv-title">Investments</h2>
+      <p class="hint">Removing one returns its past payments to your other rules; they'll show as uncategorised if nothing else matches.</p>
+    </div>
+    {{ platform_editor(rows) }}
+  </section>
+
+  <div class="form-actions sticky-actions">
+    <button class="button primary" type="submit">Save settings</button>
+  </div>
+</form>
+
+<section class="panel" aria-labelledby="data-title">
+  <div class="panel-head"><h2 id="data-title">Your data</h2></div>
+  <p class="data-path">Everything is stored on this computer in <code>{{ db_path }}</code>. A copy is saved in the <code>backups</code> folder next to it once a day.</p>
+</section>
+{% endblock %}

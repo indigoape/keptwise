@@ -1,0 +1,22 @@
+# Publishes to PyPI when a GitHub release is published.
+# Off until set up: PyPI needs a "trusted publisher" for this repository and workflow
+# (pypi.org > Your projects > Publishing), and the repository needs a "pypi" environment
+# (Settings > Environments). Then set the PUBLISH_TO_PYPI repository variable to "true".
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    if: vars.PUBLISH_TO_PYPI == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv build
+      - run: uv publish

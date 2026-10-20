@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Import statement{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Import statement</h1>
+  <p class="meta">Download last month's transactions from {{ bank_name or 'online banking' }} as a CSV, then add it here.</p>
+  {% if statement_due %}
+    <p class="due-line">You need <strong>{{ statement_due[0]|day('%-d %B') }} to {{ statement_due[1]|day('%-d %B %Y') }}</strong>.</p>
+  {% endif %}
+</header>
+
+<form class="dropzone" method="post" enctype="multipart/form-data" data-dropzone>
+  <input id="files" type="file" name="files" accept=".csv,text/csv" multiple required>
+  <label for="files">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>
+    <span class="drop-title">Drop CSV files here, or <u>choose files</u></span>
+    <span class="drop-sub" data-file-list>Overlapping statements are fine: transactions already imported are skipped.</span>
+  </label>
+  <button class="button primary" type="submit">Import</button>
+</form>
+
+{% if problems %}
+  <div class="flashes">
+    {% for name, message in problems %}
+      <p class="flash error">{% if name %}<strong>{{ name }}</strong>: {% endif %}{{ message }}</p>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% if results %}
+<section class="panel result" aria-labelledby="result-title">
+  <div class="panel-head">
+    {% set added = results|sum(attribute='rows_added') %}
+    <h2 id="result-title">{% if added %}Imported {{ added }} new transaction{{ 's' if added != 1 }}{% else %}Nothing new to import{% endif %}</h2>
+  </div>
+  <ul class="result-list">
+    {% for r in results %}<li>{{ r.summary }}</li>{% endfor %}
+  </ul>
+  {% if new_rows %}
+    <p class="result-next">
+      {% if uncategorised_new %}
+        <strong>{{ uncategorised_new }}</strong> of them need{{ 's' if uncategorised_new == 1 }} a category.
+        <a class="button primary small" href="{{ url_for('main.transactions', month='all', category='none') }}">Categorise now</a>
+      {% else %}
+        Every new transaction was categorised by your rules.
+      {% endif %}
+      {% for m in touched[-1:] %}
+        <a class="button small" href="{{ url_for('main.month', month=m) }}">See {{ m|month }}</a>
+      {% endfor %}
+    </p>
+    <div class="table-wrap">
+    <table class="rows compact">
+      <thead><tr><th scope="col">Date</th><th scope="col">Description</th><th scope="col">Category</th><th scope="col" class="num">Amount</th></tr></thead>
+      <tbody>
+      {% for t in new_rows %}
+        <tr class="{{ 'credit' if t.amount > 0 }}">
+          <td class="date">{{ t.date|day('%-d %b %Y') }}</td>
+          <td class="desc">{{ t.description }}</td>
+          <td class="cat">{% if t.category %}<span class="tag bucket-{{ t.bucket }}">{{ t.category }}</span>{% else %}<span class="tag uncat">No category</span>{% endif %}</td>
+          <td class="num">{{ t.amount|money_signed }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="panel reminder" aria-labelledby="reminder-title">
+  <div class="reminder-row">
+    <div>
+      <h2 id="reminder-title">Monthly reminder</h2>
+      <p class="hint">Adds a repeating event to Apple Calendar on the 1st of each month at 6pm. Open the file once and choose Add; change the time in Calendar if you like.</p>
+    </div>
+    <a class="button" href="{{ url_for('main.reminder_ics') }}">Add to Calendar</a>
+  </div>
+</section>
+
+<section class="panel" aria-labelledby="history-title">
+  <div class="panel-head"><h2 id="history-title">Previous imports</h2></div>
+  {% if history %}
+  <div class="table-wrap">
+  <table class="rows compact">
+    <thead><tr><th scope="col">Imported</th><th scope="col">File</th><th scope="col">Covers</th><th scope="col" class="num">New</th><th scope="col" class="num">Skipped</th></tr></thead>
+    <tbody>
+    {% for h in history %}
+      <tr>
+        <td class="date">{{ h.imported_at[:10]|day('%-d %b %Y') }}</td>
+        <td class="desc">{{ h.filename }}</td>
+        <td>{% if h.first_date %}{{ h.first_date|day('%-d %b %Y') }} to {{ h.last_date|day('%-d %b %Y') }}{% endif %}</td>
+        <td class="num">{{ h.rows_added }}</td>
+        <td class="num muted">{{ h.rows_duplicate }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+    <p class="empty-note">Nothing imported yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_platforms.html" import platform_editor %}
+{% block title %}Set up{% endblock %}
+{% block content %}
+<section class="setup">
+  <h1>Set up Keptwise</h1>
+  <p class="setup-lede">Two questions, then import your first statement. You can change all of this later in Settings.</p>
+
+  <form method="post" action="{{ url_for('main.setup') }}" class="setup-form" data-settings>
+    <section class="setup-step" aria-labelledby="bank-title">
+      <h2 id="bank-title">Which bank is your current account with?</h2>
+      <p class="hint">Used in reminders, like "Download last month's transactions from Nationwide". Keptwise reads CSV exports from most UK banks.</p>
+      <label class="bank-field">Bank
+        <input name="bank_name" value="{{ form.get('bank_name', '') }}" placeholder="e.g. Lloyds, Monzo, Nationwide" autocomplete="organization">
+      </label>
+    </section>
+
+    <section class="setup-step" aria-labelledby="inv-title">
+      <h2 id="inv-title">What do you invest in?</h2>
+      {{ platform_editor(rows) }}
+    </section>
+
+    <div class="form-actions">
+      <button class="button primary" type="submit">Save and import a statement</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Categories & rules{% endblock %}
+{% macro rule_form(action, rule=None, submit="Add rule") %}
+  {% set r = rule or {} %}
+  <form class="rule-form" method="post" action="{{ action }}" data-rule-preview>
+    <label>When the description
+      <select name="match_type">
+        {% for key, label in MATCH_TYPES.items() %}
+          <option value="{{ key }}" {% if (r.match_type or 'contains') == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="span-2">Text
+      <input name="pattern" value="{{ r.pattern if rule else prefill.pattern }}" placeholder="e.g. TESCO" autocomplete="off" {% if not rule %}autofocus{% endif %}>
+    </label>
+    <label>and it's
+      <select name="direction">
+        {% for key, label in DIRECTIONS.items() %}
+          <option value="{{ key }}" {% if (r.direction if rule else prefill.direction) == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>put it in
+      <select name="category_id" required>
+        <option value="">Choose…</option>
+        {% for key, label in BUCKETS.items() %}
+          <optgroup label="{{ label }}">
+          {% for c in grouped[key] %}
+            <option value="{{ c.id }}" {% if c.id == (r.category_id if rule else prefill.category_id) %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+          </optgroup>
+        {% endfor %}
+      </select>
+    </label>
+    <details class="more" {% if rule and (rule.tx_type or rule.priority != 10) %}open{% endif %}>
+      <summary>More options</summary>
+      <div class="more-grid">
+        <label>Bank type <span class="muted small">(optional)</span>
+          <input name="tx_type" value="{{ r.tx_type or '' }}" placeholder="DD, FPO, DEB…" maxlength="4">
+        </label>
+        <label>Priority
+          <input name="priority" type="number" value="{{ r.priority if rule else 20 }}" step="1">
+        </label>
+        <p class="muted small span-2">When several rules match, the highest priority wins. Your own rules start at 20, above the starter rules.</p>
+      </div>
+    </details>
+    <div class="preview" data-preview aria-live="polite"></div>
+    <div class="form-actions">
+      <button class="button primary" type="submit">{{ submit }}</button>
+      {% if rule %}<a class="button ghost" href="{{ url_for('main.rules_page') }}#category-{{ rule.category_id }}">Cancel</a>{% endif %}
+    </div>
+  </form>
+{% endmacro %}
+
+{% macro pattern_view(rule) %}
+  {% if rule.match_type == 'regex' and '|' in rule.pattern %}
+    <span class="chips">{% for part in rule.pattern.split('|') %}<span class="chip">{{ part.replace('\\b', '').replace('^', '').replace('\\', '') }}</span>{% endfor %}</span>
+  {% elif not rule.pattern %}
+    <span class="muted">any description</span>
+  {% else %}
+    <span class="match-type">{{ MATCH_TYPES[rule.match_type] }}</span> <span class="chip">{{ rule.pattern }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Categories &amp; rules</h1>
+  <p class="meta">Rules sort new transactions automatically. {{ rule_total }} rules across {{ categories|length }} categories.</p>
+</header>
+
+<div class="rules-layout">
+  <div class="rules-main">
+    {% for key, label in BUCKETS.items() %}
+      <section class="bucket-block" aria-labelledby="bucket-{{ key }}">
+        <h2 id="bucket-{{ key }}"><span class="swatch {{ key }}"></span>{{ label }}</h2>
+        <p class="hint">
+          {% if key == 'regular' %}Income and fixed bills.{% elif key == 'cash' %}Weekly cash, cash machines and transfers from your other account.{% elif key == 'investment' %}Money going into investments. Not counted as spending.{% else %}Everything else. Transactions with no category count here too.{% endif %}
+        </p>
+        {% for c in grouped[key] %}
+          <article class="category" id="category-{{ c.id }}">
+            <header>
+              <h3>{{ c.name }}</h3>
+              <a class="muted small" href="{{ url_for('main.transactions', month='all', category=c.id) }}">{{ tx_counts.get(c.id, 0) }} transaction{{ 's' if tx_counts.get(c.id, 0) != 1 }}</a>
+              <details class="cat-edit">
+                <summary class="quiet-link">Edit</summary>
+                <form method="post" action="{{ url_for('main.update_category', category_id=c.id) }}" class="inline-form">
+                  <label>Name <input name="name" value="{{ c.name }}" required></label>
+                  <label>Group
+                    <select name="bucket">{% for k, l in BUCKETS.items() %}<option value="{{ k }}" {% if k == c.bucket %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+                  </label>
+                  {% if c.bucket == 'investment' %}
+                    <label>Account website <input name="url" value="{{ c.url or '' }}" placeholder="https://…" inputmode="url"></label>
+                    <label class="check"><input type="checkbox" name="is_isa" value="1" {% if c.is_isa %}checked{% endif %}> Held in an ISA</label>
+                  {% endif %}
+                  <button class="button small" type="submit">Save</button>
+                </form>
+                <form method="post" action="{{ url_for('main.merge_category', category_id=c.id) }}" class="inline-form" data-confirm="Merge {{ c.name }} into the chosen category? Its transactions and rules move across.">
+                  <label>Merge into
+                    <select name="target_id" required>
+                      <option value="">Choose…</option>
+                      {% for key, label in BUCKETS.items() %}
+                        <optgroup label="{{ label }}">
+                        {% for other in grouped[key] if other.id != c.id %}<option value="{{ other.id }}">{{ other.name }}</option>{% endfor %}
+                        </optgroup>
+                      {% endfor %}
+                    </select>
+                  </label>
+                  <button class="button small" type="submit">Merge</button>
+                </form>
+                <form method="post" action="{{ url_for('main.delete_category', category_id=c.id) }}" data-confirm="Delete {{ c.name }}? Its rules go too, and its transactions go back to the remaining rules.">
+                  <button class="button small danger" type="submit">Delete category</button>
+                </form>
+              </details>
+            </header>
+            {% set crules = by_category.get(c.id, []) %}
+            {% if crules %}
+              <ul class="rule-list">
+                {% for rule in crules %}
+                  <li {% if editing and editing.id == rule.id %}class="is-editing"{% endif %}>
+                    <div class="rule-text">
+                      {{ pattern_view(rule) }}
+                      {% if rule.direction != 'any' %}<span class="cond">{{ DIRECTIONS[rule.direction]|lower }}</span>{% endif %}
+                      {% if rule.tx_type %}<span class="cond">type {{ rule.tx_type }}</span>{% endif %}
+                    </div>
+                    <div class="rule-meta">
+                      <span class="muted small" title="Transactions this rule currently categorises">{{ matches.get(rule.id, 0) }} matched</span>
+                      <span class="muted small" title="Priority">p{{ rule.priority }}</span>
+                      <a class="quiet-link small" href="{{ url_for('main.rules_page', edit=rule.id) }}#edit">Edit</a>
+                      <form method="post" action="{{ url_for('main.delete_rule', rule_id=rule.id) }}" data-confirm="Delete this rule?">
+                        <button class="link-button small" type="submit">Delete</button>
+                      </form>
+                    </div>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="muted small no-rules">No rules. Transactions get here when you choose this category yourself.</p>
+            {% endif %}
+          </article>
+        {% else %}
+          <p class="empty-note">No categories in this group.</p>
+        {% endfor %}
+      </section>
+    {% endfor %}
+  </div>
+
+  <aside class="rules-side">
+    <section class="panel sticky" id="edit">
+      {% if editing %}
+        <div class="panel-head"><h2>Edit rule</h2></div>
+        {{ rule_form(url_for('main.update_rule', rule_id=editing.id), editing, "Save rule") }}
+      {% else %}
+        <div class="panel-head"><h2>Add a rule</h2></div>
+        {{ rule_form(url_for('main.create_rule')) }}
+      {% endif %}
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Add a category</h2></div>
+      <form class="stack-form" method="post" action="{{ url_for('main.create_category') }}">
+        <label>Name <input name="name" required placeholder="e.g. Holidays"></label>
+        <label>Group
+          <select name="bucket">{% for k, l in BUCKETS.items() %}<option value="{{ k }}" {% if k == 'adhoc' %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+        </label>
+        <button class="button" type="submit">Add category</button>
+      </form>
+    </section>
+  </aside>
+</div>
+<script>window.PREVIEW_URL = "{{ url_for('main.preview_rule') }}";</script>
+{% endblock %}

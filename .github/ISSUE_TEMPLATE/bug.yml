@@ -1,0 +1,20 @@
+name: Something isn't working
+description: A bug in the app or the command line.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      description: If you can, reproduce it with `keptwise demo` so no real data is needed.
+  - type: input
+    id: version
+    attributes:
+      label: Keptwise version, operating system and Python version
+      placeholder: e.g. 1.2.0, macOS 15, Python 3.12
