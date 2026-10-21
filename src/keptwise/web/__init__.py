@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import ipaddress
 import secrets
 import sqlite3
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from flask import Flask, abort, g, request
+from flask import Flask, abort, g, redirect, request, session, url_for
 
+from .. import auth
 from .. import db as storage
 from ..dates import strftime
 from ..money import fmt, fmt_short
@@ -19,14 +21,47 @@ from .charts import CHART_HELPERS
 
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
+# Pages that work without logging in. /shutdown only answers this computer.
+OPEN_ENDPOINTS = {"main.login", "main.healthz", "main.shutdown", "static"}
 
-def create_app(db_path: Path | str | None = None, *, testing: bool = False) -> Flask:
+
+def is_loopback(address: str | None) -> bool:
+    """True for addresses that only this computer can use (127.x.x.x, ::1)."""
+    if not address:
+        return False
+    if address == "localhost":
+        return True
+    try:
+        ip = ipaddress.ip_address(address.strip("[]"))
+    except ValueError:
+        return False
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return ip.is_loopback
+
+
+def create_app(
+    db_path: Path | str | None = None, *, testing: bool = False, allow_network: bool = False
+) -> Flask:
+    """Make the app.
+
+    ``allow_network`` lets other devices connect (``keptwise serve --allow-network``).
+    They always have to log in, and are refused while no password is set.
+    """
     app = Flask(__name__)
     app.config.update(
         DB_PATH=str(db_path or storage.default_db_path()),
         TESTING=testing,
+        ALLOW_NETWORK=allow_network,
         MAX_CONTENT_LENGTH=20 * 1024 * 1024,
+        # Cookies are shared by every app on 127.0.0.1, whatever the port, so use our
+        # own name rather than Flask's "session".
+        SESSION_COOKIE_NAME="keptwise_session",
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        PERMANENT_SESSION_LIFETIME=timedelta(days=30),
     )
+    app.extensions["keptwise_throttle"] = auth.Throttle()
 
     # Back up (once a day), then create/migrate/seed, and keep a stable secret for
     # flash messages.
@@ -43,16 +78,40 @@ def create_app(db_path: Path | str | None = None, *, testing: bool = False) -> F
     conn.close()
 
     @app.before_request
-    def only_this_computer() -> None:
-        # The app has no login, so only answer requests addressed to this computer
-        # (which also stops DNS rebinding), and only accept changes made from its own
-        # pages, not from another website open in the same browser.
-        if urlsplit("//" + request.host).hostname not in LOCAL_HOSTS:
+    def guard():
+        local = is_loopback(request.remote_addr)
+        # Unless other devices are allowed: only this computer, and only requests
+        # addressed to it (which stops DNS rebinding). Checking where the request came
+        # from too means a faked Host header can't get round it.
+        addressed_here = urlsplit("//" + request.host).hostname in LOCAL_HOSTS
+        if not app.config["ALLOW_NETWORK"] and not (local and addressed_here):
             abort(403)
+        # Only accept changes made from the app's own pages, not from another website
+        # open in the same browser.
         if request.method not in ("GET", "HEAD", "OPTIONS"):
             source = request.headers.get("Origin") or request.headers.get("Referer")
             if source and urlsplit(source).netloc != request.host:
                 abort(403)
+        if request.endpoint in OPEN_ENDPOINTS:
+            return None
+        conn = get_db()
+        if not auth.has_password(conn):
+            # Without a password, only this computer, and only when other devices
+            # aren't allowed: then the Host check above also stops DNS rebinding.
+            if local and not app.config["ALLOW_NETWORK"]:
+                return None
+            # Never let other devices in without a password.
+            abort(
+                403,
+                "Keptwise is open to other devices, so it needs a password. Set one with "
+                "`keptwise password` and restart it.",
+            )
+        if session.get("auth") == auth.epoch(conn):
+            return None
+        if request.method in ("GET", "HEAD"):
+            path = request.full_path if request.query_string else request.path
+            return redirect(url_for("main.login", next=path))
+        abort(401)
 
     @app.teardown_appcontext
     def close_db(_exc: BaseException | None) -> None:

@@ -10,7 +10,8 @@
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
-  <div class="shell">
+  <div class="shell{% if bare %} bare{% endif %}">
+    {% if not bare %}
     <nav class="sidebar" aria-label="Main">
       <a class="brand" href="{{ url_for('main.index') }}">
         <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M11 9v14M21.5 9 12.5 16l9 7"/></svg>
@@ -28,9 +29,15 @@
         <li><a href="{{ url_for('main.settings') }}" {% if ep in ('main.settings', 'main.setup') %}aria-current="page"{% endif %}>Settings</a></li>
       </ul>
       <a class="button primary import-link" href="{{ url_for('main.import_page') }}" {% if ep == 'main.import_page' %}aria-current="page"{% endif %}>Import statement</a>
+      {% if password_set and session.get('auth') %}
+        <form method="post" action="{{ url_for('main.logout') }}" class="logout">
+          <button class="button ghost small" type="submit">Log out</button>
+        </form>
+      {% endif %}
     </nav>
+    {% endif %}
     <main id="main" class="main">
-      {% if statement_due and request.endpoint != 'main.import_page' %}
+      {% if statement_due and not bare and request.endpoint != 'main.import_page' %}
         <div class="due-banner" role="note">
           <p><strong>Time to import.</strong> Download {{ bank_name or 'your bank' }} transactions from {{ statement_due[0]|day('%-d %B') }} to {{ statement_due[1]|day('%-d %B %Y') }} as a CSV.</p>
           <a class="button primary small" href="{{ url_for('main.import_page') }}">Import statement</a>

@@ -53,7 +53,8 @@ The demo uses its own database, on port 8766, so it never mixes with your data. 
 again any time to start it afresh, and stop it with `keptwise stop --port 8766`.
 
 `keptwise serve` opens <http://127.0.0.1:8765> in your browser. A short setup asks for
-your bank and what you invest in (both optional), then you import your first statement.
+your bank, what you invest in and whether you want a password (all optional), then you
+import your first statement.
 
 ## How it works
 
@@ -137,6 +138,8 @@ keptwise summary                    # latest month in the terminal
 keptwise summary 2026-06            # a specific month
 keptwise recategorise               # re-apply rules to everything
 keptwise stop                       # stop an app running in the background
+keptwise password                   # set or change the password (or reset a forgotten one)
+keptwise password --remove          # go back to no password
 keptwise demo                       # try it with made-up data
 ```
 
@@ -144,8 +147,9 @@ From a clone of this repository, put `uv run` in front of each command.
 
 ## Security
 
-Keptwise is a single-user app for your own computer. It listens on `127.0.0.1` only and
-has no login, so don't expose it on a network. See [SECURITY.md](https://github.com/indigoape/keptwise/blob/main/SECURITY.md).
+Keptwise is a single-user app for your own computer. It only accepts connections from
+that computer, so other devices on your network can't reach it. If other people use your
+computer, add a password in Settings. See [SECURITY.md](https://github.com/indigoape/keptwise/blob/main/SECURITY.md).
 
 ## Why no direct bank connection?
 

@@ -201,6 +201,22 @@ span.step { color: var(--line-strong); }
 .setup-step h2 { font-size: 17px; margin-bottom: 4px; }
 .setup-step > .hint { margin-bottom: 14px; }
 .bank-field { max-width: 22rem; }
+.optional { font-size: 13px; font-weight: 500; color: var(--ink-3); margin-left: 6px; }
+.password-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 12px; max-width: 30rem; }
+.password-form { display: grid; gap: 14px; max-width: 30rem; }
+.password-form > label { max-width: 14.5rem; }
+.logout { margin: 0; }
+.logout .button { width: 100%; justify-content: center; }
+.shell.bare { grid-template-columns: minmax(0, 1fr); }
+.shell.bare .main { max-width: none; }
+.login { max-width: 22rem; margin: 12vh auto 0; display: grid; gap: 18px; }
+.login h1 { font-family: var(--serif); font-size: 32px; font-weight: 600; }
+.login-mark { width: 40px; height: 40px; }
+.login-mark rect { fill: var(--ink); }
+.login-mark path { stroke: var(--keep); stroke-width: 2.4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+@media (prefers-color-scheme: dark) { .login-mark rect { fill: #24344c; } }
+.login-form { display: grid; gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; box-shadow: var(--shadow); }
+.login-form .button { justify-content: center; }
 .platforms { display: grid; gap: 10px; }
 .platform {
   display: grid; grid-template-columns: minmax(0, 1.4fr) 120px minmax(0, 1.2fr); gap: 10px 12px;
@@ -499,6 +515,7 @@ label.check { display: flex; align-items: center; gap: 6px; font-weight: 500; co
   .sidebar li { display: flex; align-items: center; }
   .sidebar .badge { position: static; transform: none; margin-left: -2px; }
   .import-link { margin: 0; padding: 5px 10px; font-size: 13px; }
+  .logout .button { width: auto; padding: 5px 8px; }
   .main { padding: 20px 16px 48px; }
   .panel { padding: 16px; }
   .hbars li { grid-template-columns: minmax(0, 1fr) 84px; gap: 4px 10px; }

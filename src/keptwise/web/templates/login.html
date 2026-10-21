@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% set bare = true %}
+{% block title %}Log in{% endblock %}
+{% block content %}
+<section class="login">
+  <svg class="login-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M11 9v14M21.5 9 12.5 16l9 7"/></svg>
+  <h1>Keptwise</h1>
+  <form method="post" action="{{ url_for('main.login') }}" class="login-form">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>Password
+      <input type="password" name="password" autocomplete="current-password" required autofocus
+        {% if error %}aria-invalid="true" aria-describedby="login-error"{% endif %}>
+    </label>
+    {% if error %}<p class="flash error" id="login-error" role="alert">{{ error }}</p>{% endif %}
+    <label class="check"><input type="checkbox" name="remember" value="1"> Keep me logged in on this browser for 30 days</label>
+    <button class="button primary" type="submit">Log in</button>
+  </form>
+  <p class="hint">Forgotten it? Run <code>keptwise password --remove</code> in a terminal on this computer.</p>
+</section>
+{% endblock %}

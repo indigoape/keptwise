@@ -4,7 +4,7 @@
 {% block content %}
 <section class="setup">
   <h1>Set up Keptwise</h1>
-  <p class="setup-lede">Two questions, then import your first statement. You can change all of this later in Settings.</p>
+  <p class="setup-lede">A couple of questions, then import your first statement. You can change all of this later in Settings.</p>
 
   <form method="post" action="{{ url_for('main.setup') }}" class="setup-form" data-settings>
     <section class="setup-step" aria-labelledby="bank-title">
@@ -19,6 +19,21 @@
       <h2 id="inv-title">What do you invest in?</h2>
       {{ platform_editor(rows) }}
     </section>
+
+    {% if not password_set %}
+    <section class="setup-step" aria-labelledby="pw-title">
+      <h2 id="pw-title">Add a password? <span class="optional">Optional</span></h2>
+      <p class="hint">Keptwise only works on this computer, but anyone who can use this computer can open it. Add a password if you share it. You can add or remove one later in Settings.</p>
+      <div class="password-fields">
+        <label>Password
+          <input type="password" name="password" autocomplete="new-password" minlength="8">
+        </label>
+        <label>Type it again
+          <input type="password" name="password_confirm" autocomplete="new-password" minlength="8">
+        </label>
+      </div>
+    </section>
+    {% endif %}
 
     <div class="form-actions">
       <button class="button primary" type="submit">Save and import a statement</button>

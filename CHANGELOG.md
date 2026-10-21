@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.0 (2026-10-21)
+
+- An optional password. Setup offers one, and Settings can add, change or remove it.
+  Keptwise then asks for it in each new browser session ("Keep me logged in" lasts 30
+  days), slows down repeated wrong guesses, and has a **Log out** button. Forgotten it?
+  `keptwise password --remove` resets it from the terminal.
+- New `keptwise password` command to set, change or remove the password.
+- Refuses requests that don't come from this computer, even with a faked `Host` header.
+- `keptwise serve --host` now refuses addresses other devices could reach, unless you add
+  `--allow-network` and have set a password. Other devices must then log in.
+- The database and its backups can now only be read by your user account (macOS and
+  Linux).
+
 ## 1.2.1 (2026-10-20)
 
 - Published on PyPI: try it with `uvx keptwise demo`, or install it with

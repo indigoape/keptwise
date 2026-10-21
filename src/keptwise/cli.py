@@ -12,8 +12,8 @@ from pathlib import Path
 import click
 from click.core import ParameterSource
 
+from . import auth, reports
 from . import db as storage
-from . import reports
 from .importer import ImportProblem, import_path
 from .money import fmt
 from .rules import categorise
@@ -46,7 +46,17 @@ def app(ctx: click.Context, db_path: str | None) -> None:
 
 @app.command()
 @click.option("--port", default=DEFAULT_PORT, show_default=True)
-@click.option("--host", default="127.0.0.1", show_default=True)
+@click.option(
+    "--host",
+    default="127.0.0.1",
+    show_default=True,
+    help="Address to listen on. Anything but this computer needs --allow-network.",
+)
+@click.option(
+    "--allow-network",
+    is_flag=True,
+    help="Let other devices on your network connect. Needs a password (keptwise password).",
+)
 @click.option("--no-browser", is_flag=True, help="Don't open a browser tab.")
 @click.option(
     "--idle-timeout",
@@ -58,10 +68,38 @@ def app(ctx: click.Context, db_path: str | None) -> None:
 @click.option("--debug", is_flag=True, help="Auto-reload on code changes.")
 @click.pass_context
 def serve(
-    ctx: click.Context, port: int, host: str, no_browser: bool, idle_timeout: int, debug: bool
+    ctx: click.Context,
+    port: int,
+    host: str,
+    allow_network: bool,
+    no_browser: bool,
+    idle_timeout: int,
+    debug: bool,
 ) -> None:
     """Start the app and open it in your browser."""
-    url = f"http://{host}:{port}/"
+    from .web import is_loopback
+
+    if not is_loopback(host):
+        if debug:
+            raise click.UsageError("--debug only works on this computer's own address.")
+        if not allow_network:
+            raise click.UsageError(
+                f"--host {host} would let other devices reach Keptwise. If that's what you "
+                "want, set a password with `keptwise password` and add --allow-network."
+            )
+        conn = _connect(ctx.obj["db"])
+        try:
+            protected = auth.has_password(conn)
+        finally:
+            conn.close()
+        if not protected:
+            raise click.ClickException(
+                "Set a password first with `keptwise password`: anyone on your network "
+                "could otherwise read and change your data."
+            )
+    # Open the browser at this computer's own address even when listening on all of them.
+    local_host = {"0.0.0.0": "127.0.0.1", "": "127.0.0.1", "::": "::1"}.get(host, host)
+    url = f"http://{_url_host(local_host)}:{port}/"
     if is_running(url):
         click.echo(f"Keptwise is already running at {url}")
         if not no_browser:
@@ -70,7 +108,16 @@ def serve(
 
     from .web import create_app
 
-    flask_app = create_app(ctx.obj["db"])
+    flask_app = create_app(ctx.obj["db"], allow_network=not is_loopback(host))
+    if not is_loopback(host):
+        click.secho(
+            "Other devices on your network can connect, and must log in. The connection "
+            "isn't encrypted, so only do this on a network you trust.",
+            fg="yellow",
+        )
+        lan = _lan_address() if host in ("0.0.0.0", "::", "") else host
+        if lan:
+            click.echo(f"From another device, open http://{_url_host(lan)}:{port}/")
     if not no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     if debug:
@@ -112,6 +159,22 @@ def serve(
     click.echo("Keptwise stopped.")
 
 
+def _url_host(host: str) -> str:
+    return f"[{host}]" if ":" in host else host
+
+
+def _lan_address() -> str | None:
+    """This computer's address on the local network, if it has one."""
+    import socket
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))  # sends nothing; just picks a route
+            return s.getsockname()[0]
+    except OSError:
+        return None
+
+
 def is_running(url: str) -> bool:
     try:
         with urllib.request.urlopen(url + "healthz", timeout=1) as response:
@@ -131,6 +194,38 @@ def stop(port: int) -> None:
         click.echo("Keptwise isn't running.")
         return
     click.echo("Keptwise stopped.")
+
+
+@app.command()
+@click.option("--remove", is_flag=True, help="Remove the password.")
+@click.pass_context
+def password(ctx: click.Context, remove: bool) -> None:
+    """Set, change or remove the password the app asks for.
+
+    Works without the old password, so you can reset a forgotten one: anyone who can
+    run this can read the database file anyway.
+    """
+    conn = _connect(ctx.obj["db"])
+    try:
+        if remove:
+            if not auth.has_password(conn):
+                click.echo("There's no password to remove.")
+                return
+            auth.remove_password(conn)
+            click.echo("Password removed. Anyone using this computer can open Keptwise.")
+            click.echo(
+                "If Keptwise is running with --allow-network, it will refuse every request "
+                "until you set a password or restart it without that option."
+            )
+            return
+        new = click.prompt("New password", hide_input=True, confirmation_prompt="Type it again")
+        try:
+            auth.set_password(conn, new)
+        except auth.PasswordProblem as exc:
+            raise click.ClickException(str(exc)) from exc
+        click.echo("Password set. Browsers that were logged in will need to log in again.")
+    finally:
+        conn.close()
 
 
 @app.command("import")

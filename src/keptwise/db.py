@@ -6,7 +6,7 @@ import os
 import sqlite3
 import sys
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import datetime
 from pathlib import Path
 
@@ -128,7 +128,18 @@ def connect(path: Path | str | None = None) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     migrate(conn)
+    if str(path) != ":memory:":
+        make_private(Path(path))
     return conn
+
+
+def make_private(path: Path) -> None:
+    """Let only you read a file (or folder), not other accounts on this computer."""
+    if sys.platform == "win32":
+        return  # files in your user folder are already private on Windows
+    # Ignore files that aren't ours to change, or file systems without permissions.
+    with suppress(OSError):
+        path.chmod(0o700 if path.is_dir() else 0o600)
 
 
 def _needs_upgrade(path: Path) -> bool:
@@ -194,6 +205,7 @@ def backup(path: Path | str | None = None, *, keep: int = 30, force: bool = Fals
         return None
     folder = path.parent / "backups"
     folder.mkdir(exist_ok=True)
+    make_private(folder)
     existing = sorted(folder.glob(f"{path.stem}-*.db"))
     today = datetime.now().strftime("%Y%m%d")
     if not force and any(p.stem.split("-")[-2] == today for p in existing):
@@ -207,6 +219,7 @@ def backup(path: Path | str | None = None, *, keep: int = 30, force: bool = Fals
     finally:
         dest.close()
         source.close()
+    make_private(target)
     for old in sorted(folder.glob(f"{path.stem}-*.db"))[:-keep]:
         old.unlink()
     return target

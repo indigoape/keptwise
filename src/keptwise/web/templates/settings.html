@@ -31,6 +31,38 @@
   </div>
 </form>
 
+<section class="panel" id="password" aria-labelledby="password-title">
+  <div class="panel-head">
+    <h2 id="password-title">Password</h2>
+    {% if password_set %}
+      <p class="hint">Keptwise asks for your password in each new browser session. Changing it logs out every other browser.</p>
+    {% else %}
+      <p class="hint">No password: anyone who can use this computer can open Keptwise. Add one if you share it.</p>
+    {% endif %}
+  </div>
+  <form method="post" action="{{ url_for('main.password_settings') }}" class="password-form">
+    {% if password_set %}
+      <label>Current password
+        <input type="password" name="current" autocomplete="current-password" required>
+      </label>
+    {% endif %}
+    <div class="password-fields">
+      <label>{{ 'New password' if password_set else 'Password' }}
+        <input type="password" name="new" autocomplete="new-password" minlength="8">
+      </label>
+      <label>Type it again
+        <input type="password" name="confirm" autocomplete="new-password" minlength="8">
+      </label>
+    </div>
+    <div class="form-actions">
+      <button class="button primary" type="submit" name="action" value="set">{{ 'Change password' if password_set else 'Set password' }}</button>
+      {% if password_set %}
+        <button class="button danger" type="submit" name="action" value="remove" formnovalidate>Remove password</button>
+      {% endif %}
+    </div>
+  </form>
+</section>
+
 <section class="panel" aria-labelledby="data-title">
   <div class="panel-head"><h2 id="data-title">Your data</h2></div>
   <p class="data-path">Everything is stored on this computer in <code>{{ db_path }}</code>. A copy is saved in the <code>backups</code> folder next to it once a day.</p>

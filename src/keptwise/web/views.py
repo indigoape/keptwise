@@ -11,16 +11,18 @@ from flask import (
     Blueprint,
     Response,
     abort,
+    current_app,
     flash,
     jsonify,
     redirect,
     render_template,
     request,
+    session,
     url_for,
 )
 
+from .. import auth, insights, reports
 from .. import categories as category_ops
-from .. import insights, reports
 from .. import investments as platforms
 from ..db import BUCKETS, get_setting, set_setting
 from ..importer import ImportProblem, import_file
@@ -34,7 +36,7 @@ from ..rules import (
     suggest_pattern,
     validate_pattern,
 )
-from . import get_db
+from . import get_db, is_loopback
 from .charts import Bar
 
 bp = Blueprint("main", __name__)
@@ -53,6 +55,7 @@ def inject_nav() -> dict:
         "BUCKETS": BUCKETS,
         "statement_due": statement_due(conn),
         "bank_name": get_setting(conn, "bank_name") or "",
+        "password_set": auth.has_password(conn),
     }
 
 
@@ -133,10 +136,113 @@ def shutdown():
     from flask import current_app
 
     stop = current_app.config.get("SHUTDOWN")
-    if request.remote_addr not in ("127.0.0.1", "::1") or stop is None:
+    if not is_loopback(request.remote_addr) or stop is None:
         abort(404)
     stop()
     return "stopping"
+
+
+# -------------------------------------------------------------------- password & login
+
+
+def _log_in(conn, *, remember: bool) -> None:
+    flashes = session.get("_flashes")
+    session.clear()  # start a fresh session
+    if flashes:
+        session["_flashes"] = flashes
+    session["auth"] = auth.epoch(conn)
+    session.permanent = remember  # 30 days, otherwise until the browser closes
+
+
+def _safe_next(target: str | None) -> str:
+    """Only go back to a page of this app after logging in."""
+    from urllib.parse import urlsplit
+
+    target = target or ""
+    # Browsers ignore tabs and newlines in URLs and treat \ like /, so refuse anything
+    # with them rather than risk "/\t/evil.example" becoming "//evil.example".
+    ok = (
+        target.startswith("/")
+        and not target.startswith("//")
+        and target.isprintable()
+        and not any(c in target for c in " \\")
+    )
+    if ok:
+        parts = urlsplit(target)
+        if not parts.scheme and not parts.netloc:
+            return target
+    return url_for("main.index")
+
+
+def _wait_text(seconds: int) -> str:
+    if seconds < 60:
+        return f"{seconds} second{'s' if seconds != 1 else ''}"
+    minutes = -(-seconds // 60)
+    return f"{minutes} minute{'s' if minutes != 1 else ''}"
+
+
+@bp.route("/login", methods=["GET", "POST"])
+def login():
+    conn = get_db()
+    target = _safe_next(request.values.get("next"))
+    if not auth.has_password(conn):
+        return redirect(target)
+    if request.method == "GET":
+        return render_template("login.html", next=target, error=None)
+    throttle = current_app.extensions["keptwise_throttle"]
+    # Someone on another device can't lock you out on this computer.
+    who = "this computer" if is_loopback(request.remote_addr) else request.remote_addr or ""
+    wait = throttle.attempt(who)
+    if wait:
+        error, status = f"Too many wrong tries. Try again in {_wait_text(wait)}.", 429
+    elif auth.check_password(conn, request.form.get("password", "")):
+        throttle.succeeded(who)
+        _log_in(conn, remember=bool(request.form.get("remember")))
+        return redirect(target)
+    else:
+        error, status = "That password isn't right.", 401
+    return render_template("login.html", next=target, error=error), status
+
+
+@bp.post("/logout")
+def logout():
+    session.clear()
+    flash("Logged out.", "success")
+    return redirect(url_for("main.login"))
+
+
+@bp.post("/settings/password")
+def password_settings():
+    conn = get_db()
+    form = request.form
+    back = redirect(url_for("main.settings", _anchor="password"))
+    had_password = auth.has_password(conn)
+    if had_password and not auth.check_password(conn, form.get("current", "")):
+        flash("Your current password isn't right.", "error")
+        return back
+    if form.get("action") == "remove":
+        if current_app.config["ALLOW_NETWORK"]:
+            flash(
+                "Keptwise is open to other devices, so it needs a password. Restart it "
+                "without --allow-network to remove the password.",
+                "error",
+            )
+            return back
+        auth.remove_password(conn)
+        session.pop("auth", None)
+        flash("Password removed. Anyone using this computer can open Keptwise.", "success")
+        return back
+    try:
+        auth.set_password(conn, form.get("new", ""), form.get("confirm", ""))
+    except auth.PasswordProblem as exc:
+        flash(str(exc), "error")
+        return back
+    _log_in(conn, remember=session.permanent)
+    if had_password:
+        flash("Password changed. Other browsers will need to log in again.", "success")
+    else:
+        flash("Password set. You'll need it next time you open Keptwise.", "success")
+    return back
 
 
 def _categories(conn):
@@ -189,8 +295,18 @@ def setup():
     """First run: your bank and what you invest in."""
     conn = get_db()
     if request.method == "POST":
-        error = _save_settings(conn, request.form)
+        password = request.form.get("password", "")
+        error = None
+        if password and not auth.has_password(conn):
+            try:
+                auth.validate(password, request.form.get("password_confirm", ""))
+            except auth.PasswordProblem as exc:
+                error = f"Password: {exc}"
+        error = error or _save_settings(conn, request.form)
         if error is None:
+            if password and not auth.has_password(conn):
+                auth.set_password(conn, password)
+                _log_in(conn, remember=False)
             return redirect(url_for("main.import_page"))
         flash(error, "error")
         return render_template("setup.html", form=request.form, rows=_form_rows(request.form))
